@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="trial_balance" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="d6e87295-d602-4632-9653-53d7119e88d6">
+	<parameter name="date_from" class="java.lang.String"/>
+	<parameter name="date_to" class="java.lang.String"/>
+	<parameter name="company_name" class="java.lang.String"/>
+	<parameter name="company_address" class="java.lang.String"/>
+	<parameter name="financial_year" class="java.lang.String"/>
+	<queryString>
+		<![CDATA[SELECT 
+            COALESCE(v.vote_code, 'N/A') as code, 
+            COALESCE(v.description, 'Unknown Account') as name, 
+            SUM(gj.debit) as total_debit, 
+            SUM(gj.credit) as total_credit,
+            (SUM(gj.debit) - SUM(gj.credit)) as balance
+        FROM general_journals gj
+        LEFT JOIN votes v ON gj.vote_id = v.id
+        WHERE gj.trans_date BETWEEN $P{date_from} AND $P{date_to}
+        GROUP BY v.id, v.description, v.vote_code
+        HAVING SUM(gj.debit) != 0 OR SUM(gj.credit) != 0
+        ORDER BY v.vote_code ASC]]>
+	</queryString>
+	<field name="code" class="java.lang.String"/>
+	<field name="name" class="java.lang.String"/>
+	<field name="total_debit" class="java.math.BigDecimal"/>
+	<field name="total_credit" class="java.math.BigDecimal"/>
+	<field name="balance" class="java.math.BigDecimal"/>
+    <variable name="grand_total_debit" class="java.math.BigDecimal" calculation="Sum">
+        <variableExpression><![CDATA[$F{total_debit}]]></variableExpression>
+    </variable>
+    <variable name="grand_total_credit" class="java.math.BigDecimal" calculation="Sum">
+        <variableExpression><![CDATA[$F{total_credit}]]></variableExpression>
+    </variable>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<title>
+		<band height="100" splitType="Stretch">
+			<textField>
+				<reportElement x="0" y="0" width="555" height="30" forecolor="#333333" uuid="b194fb84-17a4-4a24-9b84-47a32332677e"/>
+				<textElement textAlignment="Center">
+					<font size="18" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{company_name}]]></textFieldExpression>
+			</textField>
+            <textField>
+				<reportElement x="0" y="30" width="555" height="20" forecolor="#666666" uuid="b194fb84-17a4-4a24-9b84-47a32332677d"/>
+				<textElement textAlignment="Center">
+					<font size="10" isBold="false"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$P{company_address}]]></textFieldExpression>
+			</textField>
+			<staticText>
+				<reportElement x="0" y="55" width="555" height="25" forecolor="#006699" uuid="55581e22-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Center">
+					<font size="14" isBold="true"/>
+				</textElement>
+				<text><![CDATA[Trial Balance Report]]></text>
+			</staticText>
+			<textField>
+				<reportElement x="0" y="80" width="555" height="20" uuid="93421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Center">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA["For the period " + $P{date_from} + " to " + $P{date_to}]]></textFieldExpression>
+			</textField>
+		</band>
+	</title>
+	<columnHeader>
+		<band height="30" splitType="Stretch">
+            <rectangle>
+                <reportElement x="0" y="0" width="555" height="30" backcolor="#F5F5F5" uuid="d9342142-cc43-4e6f-870b-47e09156ea37"/>
+                <graphicElement><pen lineWidth="0.0"/></graphicElement>
+            </rectangle>
+			<staticText>
+				<reportElement x="5" y="0" width="80" height="30" uuid="e9342142-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Vote Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="85" y="0" width="270" height="30" uuid="f9342142-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Account Description]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="355" y="0" width="90" height="30" uuid="03421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Debit]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="445" y="0" width="90" height="30" uuid="13421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[Credit]]></text>
+			</staticText>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Stretch">
+			<textField>
+				<reportElement x="5" y="0" width="80" height="20" uuid="23421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement verticalAlignment="Middle">
+                    <font size="9"/>
+                </textElement>
+				<textFieldExpression><![CDATA[$F{code}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="85" y="0" width="270" height="20" uuid="33421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement verticalAlignment="Middle">
+                    <font size="9"/>
+                </textElement>
+				<textFieldExpression><![CDATA[$F{name}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00">
+				<reportElement x="355" y="0" width="90" height="20" uuid="43421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+                    <font size="9"/>
+                </textElement>
+				<textFieldExpression><![CDATA[$F{total_debit}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00">
+				<reportElement x="445" y="0" width="90" height="20" uuid="53421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+                    <font size="9"/>
+                </textElement>
+				<textFieldExpression><![CDATA[$F{total_credit}]]></textFieldExpression>
+			</textField>
+            <line>
+				<reportElement x="0" y="19" width="555" height="1" forecolor="#EEEEEE" uuid="d9342142-cc43-4e6f-870b-47e09156ea38"/>
+			</line>
+		</band>
+	</detail>
+	<pageFooter>
+		<band height="30" splitType="Stretch">
+			<textField>
+				<reportElement x="355" y="10" width="200" height="20" forecolor="#999999" uuid="63421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Right">
+                    <font size="8"/>
+                </textElement>
+				<textFieldExpression><![CDATA["Page " + $V{PAGE_NUMBER}]]></textFieldExpression>
+			</textField>
+			<textField pattern="dd/MM/yyyy HH:mm">
+				<reportElement x="0" y="10" width="200" height="20" forecolor="#999999" uuid="73421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Left">
+                    <font size="8"/>
+                </textElement>
+				<textFieldExpression><![CDATA["Generated on: " + new java.util.Date()]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageFooter>
+    <summary>
+        <band height="40">
+            <line>
+				<reportElement x="355" y="5" width="180" height="1" uuid="d9342142-cc43-4e6f-870b-47e09156ea39"/>
+			</line>
+            <staticText>
+				<reportElement x="255" y="10" width="100" height="20" uuid="13421e42-cc43-4e6f-870b-47e09156ea37"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font isBold="true"/>
+				</textElement>
+				<text><![CDATA[TOTALS:]]></text>
+			</staticText>
+            <textField pattern="#,##0.00">
+				<reportElement x="355" y="10" width="90" height="20" uuid="43421e42-cc43-4e6f-870b-47e09156ea37"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+                    <font isBold="true"/>
+                </textElement>
+				<textFieldExpression><![CDATA[$V{grand_total_debit}]]></textFieldExpression>
+			</textField>
+            <textField pattern="#,##0.00">
+				<reportElement x="445" y="10" width="90" height="20" uuid="53421e42-cc43-4e6f-870b-47e09156ea37"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+                    <font isBold="true"/>
+                </textElement>
+				<textFieldExpression><![CDATA[$V{grand_total_credit}]]></textFieldExpression>
+			</textField>
+            <line>
+				<reportElement x="355" y="32" width="180" height="1" uuid="d9342142-cc43-4e6f-870b-47e09156ea40"/>
+			</line>
+            <line>
+				<reportElement x="355" y="35" width="180" height="1" uuid="d9342142-cc43-4e6f-870b-47e09156ea41"/>
+			</line>
+        </band>
+    </summary>
+</jasperReport>
