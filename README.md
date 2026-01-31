@@ -15,10 +15,30 @@ A robust, enterprise-grade wrapper for Jasper Reports in Laravel, designed to se
 Follow these steps to integrate Jasper Reports into your Laravel project.
 
 ### 1. Install Package
-Run the following command to add the package to your project via Packagist:
+You can install this package via **Packagist** (recommended) or directly from **GitHub**.
+
+#### Option A: via Packagist (Standard)
+Run the following command:
 
 ```bash
 composer require nexterp/jasper-reports
+```
+
+#### Option B: via GitHub (Direct)
+Add the repository to your root `composer.json`:
+
+```json
+"repositories": [
+    {
+        "type": "vcs",
+        "url": "https://github.com/tinashekadiki/erp-reports.git"
+    }
+],
+```
+
+Then run:
+```bash
+composer require nexterp/jasper-reports:dev-main
 ```
 
 ### 2. Auto-Update Setup (GitHub Hook)
