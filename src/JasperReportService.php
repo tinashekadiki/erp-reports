@@ -33,7 +33,13 @@ class JasperReportService
             'db_connection' => $dbConnection ?: $this->getDbConnection()
         ];
 
-        $this->jasper->process($input, $output, $options)->execute();
+        $command = $this->jasper->process($input, $output, $options);
+
+        try {
+            $command->execute();
+        } catch (\Exception $e) {
+            throw new \Exception("Jasper execution failed. COMMAND: " . $command->output() . " ERROR: " . $e->getMessage());
+        }
 
         return $output . '.' . $format[0];
     }
@@ -66,6 +72,11 @@ class JasperReportService
      */
     public function compile($input)
     {
-        $this->jasper->compile($input)->execute();
+        $command = $this->jasper->compile($input);
+        try {
+            $command->execute();
+        } catch (\Exception $e) {
+            throw new \Exception("Jasper compilation failed. COMMAND: " . $command->output() . " ERROR: " . $e->getMessage());
+        }
     }
 }

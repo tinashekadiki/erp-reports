@@ -1,127 +1,304 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="balance_sheet" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="d6e87295-d602-4632-9653-53d7119e88d6">
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="statement_of_financial_position" pageWidth="595" pageHeight="842" columnWidth="555" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" uuid="d6e87295-d602-4632-9653-53d7119e88d6">
+	<parameter name="date_from" class="java.lang.String"/>
 	<parameter name="date_to" class="java.lang.String"/>
 	<parameter name="company_name" class="java.lang.String"/>
 	<parameter name="company_address" class="java.lang.String"/>
-	<parameter name="date_from" class="java.lang.String"/>
 	<parameter name="financial_year" class="java.lang.String"/>
+	<parameter name="print_details" class="java.lang.String"/>
+	<parameter name="sort_by" class="java.lang.String"/>
+	<parameter name="display_format" class="java.lang.String"/>
+	<parameter name="suppress_zero" class="java.lang.Boolean"/>
+	<parameter name="include_ytd" class="java.lang.Boolean"/>
+	<parameter name="include_budget" class="java.lang.Boolean"/>
+	<parameter name="print_assets_first" class="java.lang.Boolean"/>
+	<parameter name="logo" class="java.lang.String"/>
 	<queryString>
 		<![CDATA[SELECT 
-            fc.name as category,
+            fcc.name as class_name,
+            fcs.name as sub_class_name,
+            fc.name as category_name,
             v.vote_code as code, 
-            v.description as name, 
-            (SUM(gj.debit) - SUM(gj.credit)) as balance
-        FROM general_journals gj
-        JOIN votes v ON gj.vote_id = v.id
-        LEFT JOIN financial_categories fc ON v.financial_category_id = fc.id
-        WHERE gj.trans_date <= $P{date_to}
-        GROUP BY fc.name, v.id, v.description, v.vote_code
-        HAVING (SUM(gj.debit) - SUM(gj.credit)) != 0
-        ORDER BY fc.name, v.vote_code ASC]]>
+            CASE 
+                WHEN v.description LIKE '%(%)%' THEN TRIM(REPLACE(SUBSTRING_INDEX(v.description, '(', -1), ')', ''))
+                ELSE v.description
+            END as account_desc,
+            CASE 
+                WHEN fcc.name = 'Assets' THEN COALESCE((SELECT SUM(gj_curr.debit - gj_curr.credit) FROM general_journals gj_curr WHERE gj_curr.vote_id = v.id AND gj_curr.trans_date <= $P{date_to}), 0)
+                ELSE COALESCE((SELECT SUM(gj_curr.credit - gj_curr.debit) FROM general_journals gj_curr WHERE gj_curr.vote_id = v.id AND gj_curr.trans_date <= $P{date_to}), 0)
+            END as balance,
+            CASE 
+                WHEN fcc.name = 'Assets' THEN COALESCE((SELECT SUM(gj_py.debit - gj_py.credit) FROM general_journals gj_py WHERE gj_py.vote_id = v.id AND gj_py.trans_date <= DATE_SUB($P{date_to}, INTERVAL 1 YEAR)), 0)
+                ELSE COALESCE((SELECT SUM(gj_py.credit - gj_py.debit) FROM general_journals gj_py WHERE gj_py.vote_id = v.id AND gj_py.trans_date <= DATE_SUB($P{date_to}, INTERVAL 1 YEAR)), 0)
+            END as py_balance,
+            COALESCE((SELECT vb.budget FROM vote_budgets vb WHERE vb.vote_id = v.id AND vb.year = $P{financial_year} LIMIT 1), 0) as budget_balance,
+            fcc.reporting_order as class_order,
+            fcs.reporting_order as sub_class_order,
+            fc.reporting_order as category_order
+        FROM votes v
+        JOIN financial_categories fc ON v.financial_category_id = fc.id
+        JOIN financial_category_sub_classes fcs ON fc.financial_category_sub_class_id = fcs.id
+        JOIN financial_category_classes fcc ON fcs.financial_category_class_id = fcc.id
+        WHERE fcc.name IN ('Assets', 'Liabilities', 'Equity')
+        GROUP BY v.id, fcc.name, fcs.name, fc.name, v.vote_code, v.description, fcc.reporting_order, fcs.reporting_order, fc.reporting_order
+        HAVING balance != 0 OR py_balance != 0 OR budget_balance != 0
+        ORDER BY 
+            CASE WHEN fcc.name = 'Assets' THEN 1 ELSE 2 END,
+            CASE 
+                WHEN fcs.name LIKE '%Non%Current%Asset%' THEN 1
+                WHEN fcs.name LIKE '%Current%Asset%' THEN 2
+                WHEN fcs.name LIKE '%Equity%' THEN 3
+                WHEN fcs.name LIKE '%Non%Current%Liab%' THEN 4
+                WHEN fcs.name LIKE '%Current%Liab%' THEN 5
+                ELSE 99
+            END,
+            fcs.reporting_order, 
+            fc.reporting_order, 
+            v.vote_code ASC]]>
 	</queryString>
-	<field name="category" class="java.lang.String"/>
+	<field name="class_name" class="java.lang.String"/>
+	<field name="sub_class_name" class="java.lang.String"/>
+	<field name="category_name" class="java.lang.String"/>
 	<field name="code" class="java.lang.String"/>
-	<field name="name" class="java.lang.String"/>
+	<field name="account_desc" class="java.lang.String"/>
 	<field name="balance" class="java.math.BigDecimal"/>
-    <variable name="category_total" class="java.math.BigDecimal" resetType="Group" resetGroup="CategoryGroup" calculation="Sum">
-        <variableExpression><![CDATA[$F{balance}]]></variableExpression>
-    </variable>
-	<group name="CategoryGroup">
-		<groupExpression><![CDATA[$F{category}]]></groupExpression>
+	<field name="py_balance" class="java.math.BigDecimal"/>
+	<field name="budget_balance" class="java.math.BigDecimal"/>
+	<variable name="category_total" class="java.math.BigDecimal" resetType="Group" resetGroup="CategoryGroup" calculation="Sum">
+		<variableExpression><![CDATA[$F{balance}]]></variableExpression>
+	</variable>
+	<variable name="sub_class_total" class="java.math.BigDecimal" resetType="Group" resetGroup="SubClassGroup" calculation="Sum">
+		<variableExpression><![CDATA[$F{balance}]]></variableExpression>
+	</variable>
+	<variable name="class_total" class="java.math.BigDecimal" resetType="Group" resetGroup="ClassGroup" calculation="Sum">
+		<variableExpression><![CDATA[$F{balance}]]></variableExpression>
+	</variable>
+	<variable name="class_total_py" class="java.math.BigDecimal" resetType="Group" resetGroup="ClassGroup" calculation="Sum">
+		<variableExpression><![CDATA[$F{py_balance}]]></variableExpression>
+	</variable>
+	<group name="ClassGroup">
+		<groupExpression><![CDATA[$F{class_name}]]></groupExpression>
 		<groupHeader>
-			<band height="30">
+			<band height="25">
 				<textField>
-					<reportElement x="0" y="10" width="555" height="20" forecolor="#006699" uuid="2b194fb8-17a4-4a24-9b84-47a32332677e"/>
-					<textElement>
-						<font size="12" isBold="true"/>
+					<reportElement mode="Opaque" x="0" y="5" width="555" height="20" forecolor="#FFFFFF" backcolor="#006699" uuid="2b194fb8-17a4-4a24-9b84-47a32332677e"/>
+					<textElement verticalAlignment="Middle">
+						<font size="11" isBold="true"/>
+						<paragraph leftIndent="5"/>
 					</textElement>
-					<textFieldExpression><![CDATA[$F{category} != null ? $F{category} : "Uncategorized"]]></textFieldExpression>
+					<textFieldExpression><![CDATA[$F{class_name}.equals("Assets") ? "ASSETS" : "EQUITY AND LIABILITIES"]]></textFieldExpression>
 				</textField>
 			</band>
 		</groupHeader>
 		<groupFooter>
 			<band height="30">
-				<textField pattern="#,##0.00">
-					<reportElement x="445" y="5" width="100" height="20" uuid="3b194fb8-17a4-4a24-9b84-47a32332677e"/>
-					<textElement textAlignment="Right">
-						<font isBold="true"/>
-					</textElement>
-					<textFieldExpression><![CDATA[$V{category_total}]]></textFieldExpression>
-				</textField>
+				<line>
+					<reportElement x="250" y="2" width="305" height="1" uuid="5b194fb8-17a4-4a24-9b84-47a32332677e"/>
+				</line>
 				<textField>
-					<reportElement x="245" y="5" width="200" height="20" uuid="4b194fb8-17a4-4a24-9b84-47a32332677e"/>
-					<textElement textAlignment="Right">
-						<font isBold="true"/>
+					<reportElement x="100" y="5" width="205" height="15" uuid="13421e42-cc43-4e6f-870b-47e09156ea36"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="9" isBold="true"/>
 					</textElement>
-					<textFieldExpression><![CDATA["Total " + ($F{category} != null ? $F{category} : "Uncategorized")]]></textFieldExpression>
+					<textFieldExpression><![CDATA["TOTAL " + ($F{class_name}.equals("Assets") ? "ASSETS" : "EQUITY AND LIABILITIES")]]></textFieldExpression>
 				</textField>
+				<textField pattern="#,##0.00;(#,##0.00)">
+					<reportElement x="305" y="5" width="80" height="15" uuid="03421e42-cc43-4e6f-870b-47e09156ea36"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="9" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{class_total}]]></textFieldExpression>
+				</textField>
+				<line>
+					<reportElement x="305" y="22" width="80" height="1" uuid="5b194fb8-17a4-4a24-9b84-47a32332677f"/>
+				</line>
                 <line>
-                    <reportElement x="350" y="0" width="200" height="1" uuid="5b194fb8-17a4-4a24-9b84-47a32332677e"/>
-                </line>
+					<reportElement x="305" y="25" width="80" height="1" uuid="5b194fb8-17a4-4a24-9b84-47a323326780"/>
+				</line>
 			</band>
 		</groupFooter>
+	</group>
+	<group name="SubClassGroup">
+		<groupExpression><![CDATA[$F{sub_class_name}]]></groupExpression>
+		<groupHeader>
+			<band height="20">
+				<textField>
+					<reportElement x="5" y="3" width="545" height="15" forecolor="#333333" uuid="2b194fb8-17a4-4a24-9b84-47a32332677f"/>
+					<textElement verticalAlignment="Middle">
+						<font size="10" isBold="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{sub_class_name}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupHeader>
+		<groupFooter>
+			<band height="20">
+				<textField>
+					<reportElement x="150" y="2" width="155" height="15" uuid="5b194fb8-17a4-4a24-9b84-47a323326101"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="9" isBold="true" isItalic="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA["Total " + $F{sub_class_name}]]></textFieldExpression>
+				</textField>
+				<textField pattern="#,##0.00;(#,##0.00)">
+					<reportElement x="305" y="2" width="80" height="15" uuid="5b194fb8-17a4-4a24-9b84-47a323326102"/>
+					<textElement textAlignment="Right" verticalAlignment="Middle">
+						<font size="9" isBold="true" isItalic="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$V{sub_class_total}]]></textFieldExpression>
+				</textField>
+				<line>
+					<reportElement x="305" y="0" width="80" height="1" forecolor="#CCCCCC" uuid="5b194fb8-17a4-4a24-9b84-47a323326103"/>
+				</line>
+			</band>
+		</groupFooter>
+	</group>
+	<group name="CategoryGroup">
+		<groupExpression><![CDATA[$F{category_name}]]></groupExpression>
+		<groupHeader>
+			<band height="18">
+				<textField>
+					<reportElement x="15" y="0" width="190" height="15" forecolor="#666666" uuid="2b194fb8-17a4-4a24-9b84-47a32332677f"/>
+					<textElement verticalAlignment="Middle">
+						<font size="9" isBold="true" isItalic="true"/>
+					</textElement>
+					<textFieldExpression><![CDATA[$F{category_name}]]></textFieldExpression>
+				</textField>
+			</band>
+		</groupHeader>
 	</group>
 	<background>
 		<band splitType="Stretch"/>
 	</background>
 	<title>
-		<band height="100" splitType="Stretch">
+		<band height="110" splitType="Stretch">
 			<textField>
-				<reportElement x="0" y="0" width="555" height="30" forecolor="#333333" uuid="b194fb84-17a4-4a24-9b84-47a32332677e"/>
+				<reportElement x="0" y="0" width="555" height="30" forecolor="#006699" uuid="b194fb84-17a4-4a24-9b84-47a32332677e"/>
 				<textElement textAlignment="Center">
 					<font size="18" isBold="true"/>
 				</textElement>
-				<textFieldExpression><![CDATA[$P{company_name}]]></textFieldExpression>
+				<textFieldExpression><![CDATA["Statement of Financial Position"]]></textFieldExpression>
 			</textField>
-			<staticText>
-				<reportElement x="0" y="30" width="555" height="25" forecolor="#006699" uuid="55581e22-cc43-4e6f-870b-47e09156ea36"/>
-				<textElement textAlignment="Center">
-					<font size="14" isBold="true"/>
-				</textElement>
-				<text><![CDATA[Balance Sheet]]></text>
-			</staticText>
+			<image scaleImage="RetainShape" hAlign="Left" vAlign="Top">
+				<reportElement x="0" y="0" width="80" height="50" uuid="a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"/>
+				<imageExpression><![CDATA[$P{logo}]]></imageExpression>
+			</image>
 			<textField>
-				<reportElement x="0" y="55" width="555" height="20" uuid="93421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<reportElement x="0" y="30" width="555" height="20" forecolor="#006699" uuid="b194fb84-17a4-4a24-9b84-47a32332677f"/>
 				<textElement textAlignment="Center">
-					<font size="10"/>
+					<font size="12" isBold="true"/>
 				</textElement>
-				<textFieldExpression><![CDATA["As at: " + $P{date_to}]]></textFieldExpression>
+				<textFieldExpression><![CDATA["Copy of " + $P{company_name}]]></textFieldExpression>
 			</textField>
+			<line>
+				<reportElement x="0" y="60" width="555" height="1" forecolor="#999999" uuid="5b194fb8-17a4-4a24-9b84-47a32332677f"/>
+			</line>
+			<textField>
+				<reportElement x="0" y="65" width="555" height="20" forecolor="#666666" uuid="93421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="10" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA["As at " + $P{date_to}]]></textFieldExpression>
+			</textField>
+			<line>
+				<reportElement x="0" y="90" width="555" height="1" forecolor="#999999" uuid="5b194fb8-17a4-4a24-9b84-47a323326780"/>
+			</line>
 		</band>
 	</title>
+	<columnHeader>
+		<band height="25">
+			<staticText>
+				<reportElement x="0" y="0" width="70" height="20" forecolor="#333333" uuid="c9342142-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<text><![CDATA[Account Code]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="70" y="0" width="235" height="20" forecolor="#333333" uuid="d9342142-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<text><![CDATA[Description]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="305" y="0" width="80" height="20" forecolor="#333333" uuid="e9342142-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<text><![CDATA[Actual]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="390" y="0" width="80" height="20" forecolor="#333333" uuid="f9342142-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<text><![CDATA[Budget]]></text>
+			</staticText>
+			<staticText>
+				<reportElement x="475" y="0" width="80" height="20" forecolor="#333333" uuid="03421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<text><![CDATA[PY Actual]]></text>
+			</staticText>
+			<line>
+				<reportElement x="0" y="22" width="555" height="1" forecolor="#CCCCCC" uuid="5b194fb8-17a4-4a24-9b84-47a323326781"/>
+			</line>
+		</band>
+	</columnHeader>
 	<detail>
-		<band height="20" splitType="Stretch">
+		<band height="15" splitType="Stretch">
 			<textField>
-				<reportElement x="20" y="0" width="80" height="20" uuid="23421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<reportElement x="5" y="0" width="65" height="15" forecolor="#666666" uuid="23421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
 				<textFieldExpression><![CDATA[$F{code}]]></textFieldExpression>
 			</textField>
-			<textField>
-				<reportElement x="100" y="0" width="345" height="20" uuid="33421e42-cc43-4e6f-870b-47e09156ea36"/>
-				<textFieldExpression><![CDATA[$F{name}]]></textFieldExpression>
+			<textField isStretchWithOverflow="true">
+				<reportElement x="70" y="0" width="235" height="15" forecolor="#006699" uuid="33421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{account_desc}]]></textFieldExpression>
 			</textField>
-			<textField pattern="#,##0.00">
-				<reportElement x="445" y="0" width="100" height="20" uuid="43421e42-cc43-4e6f-870b-47e09156ea36"/>
-				<textElement textAlignment="Right"/>
+			<textField pattern="#,##0.00;(#,##0.00)">
+				<reportElement x="305" y="0" width="80" height="15" forecolor="#006699" uuid="43421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
 				<textFieldExpression><![CDATA[$F{balance}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;(#,##0.00)">
+				<reportElement x="390" y="0" width="80" height="15" uuid="53421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{budget_balance}]]></textFieldExpression>
+			</textField>
+			<textField pattern="#,##0.00;(#,##0.00)">
+				<reportElement x="475" y="0" width="80" height="15" uuid="73421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="9"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$F{py_balance}]]></textFieldExpression>
 			</textField>
 		</band>
 	</detail>
 	<pageFooter>
-		<band height="30" splitType="Stretch">
+		<band height="35" splitType="Stretch">
 			<textField>
-				<reportElement x="355" y="10" width="200" height="20" forecolor="#999999" uuid="63421e42-cc43-4e6f-870b-47e09156ea36"/>
-				<textElement textAlignment="Right">
-                    <font size="8"/>
-                </textElement>
+				<reportElement x="380" y="10" width="175" height="15" forecolor="#999999" uuid="82b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"/>
+				<textElement textAlignment="Right" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
 				<textFieldExpression><![CDATA["Page " + $V{PAGE_NUMBER}]]></textFieldExpression>
 			</textField>
 			<textField pattern="dd/MM/yyyy HH:mm">
-				<reportElement x="0" y="10" width="200" height="20" forecolor="#999999" uuid="73421e42-cc43-4e6f-870b-47e09156ea36"/>
-				<textElement textAlignment="Left">
-                    <font size="8"/>
-                </textElement>
+				<reportElement x="0" y="10" width="175" height="15" forecolor="#999999" uuid="73421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Left" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
 				<textFieldExpression><![CDATA["Generated on: " + new java.util.Date()]]></textFieldExpression>
 			</textField>
+			<staticText>
+				<reportElement x="175" y="10" width="205" height="15" forecolor="#999999" uuid="83421e42-cc43-4e6f-870b-47e09156ea36"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="8"/>
+				</textElement>
+				<text><![CDATA[(c) Zenue Systems 2026 for Ndarama ERP]]></text>
+			</staticText>
 		</band>
 	</pageFooter>
 </jasperReport>

@@ -4,133 +4,113 @@ A robust, enterprise-grade wrapper for Jasper Reports in Laravel, designed to se
 
 ## 🚀 Features
 
-- **Pro-Level Integration**: Seamless wrapper around `phpjasper`.
-- **Java 8 Compatibility Engine**: Solves the notorious `ClassCastException` found when running Jasper on Java 17+.
-- **Automated Binary Patching**: Automatically patches the underlying `jasperstarter` executable to use a strictly defined local Java 8 binary.
-- **Enterprise Reports**: Includes pre-built templates for Trial Balance, Income Statement, and Balance Sheet.
+- **Java 8 Compatibility Engine**: Solves $ClassCastException$ issues by using a strictly defined local Java 8 binary.
+- **Automated Binary Patching**: Automatically patches the underlying `jasperstarter` executable to use the local Java 8.
+- **Enterprise Reports**: Includes pre-built templates for Trial Balance, Income Statement, Balance Sheet, Cash Flow, Changes in Equity, and General Ledger.
 
 ---
 
-## 🛠 Prerequisites & Setup
+## 🛠 Step-by-Step Installation
 
-### 1. The Java 8 Requirement
-Jasper Reports (specifically the libraries used by `jasperstarter`) rely on legacy Java 8 class loaders. Running this on Java 17, 21, or newer will result in crashes like:
-`java.lang.ClassCastException: class jdk.internal.loader.ClassLoaders$AppClassLoader cannot be cast to class java.net.URLClassLoader`
+Follow these steps to integrate Jasper Reports into your Laravel project.
 
-### 2. Installing Local Java 8 (Portable)
-We do **not** rely on the system-wide Java version. Instead, we use a portable local installation.
-
-**Run these commands in your project root:**
-
-```bash
-# 1. Create the local directory
-mkdir -p .java8
-
-# 2. Download and extract Zulu OpenJDK 8 (MacOS ARM64 Example)
-# You may need to adjust the URL for Linux/Windows
-curl -L https://cdn.azul.com/zulu/bin/zulu8.84.0.15-ca-jdk8.0.442-macosx_aarch64.tar.gz | tar -xz -C .java8 --strip-components=1
-
-# 3. Verify it works
-./.java8/bin/java -version
-```
-
-### 3. Automatic Patching
-This package works in tandem with the root `post-update-cmd.php` script to ensure `jasperstarter` ALWAYS uses the local Java 8.
-
-**How it works:**
-1. Composer runs `post-autoload-dump`.
-2. The script checks for `.java8/bin/java`.
-3. It rewrites the shebang and execution line in `vendor/geekcom/phpjasper/bin/jasperstarter/bin/jasperstarter`.
-
-If you ever encounter Java errors, simply run:
-```bash
-composer dump-autoload
-```
-
----
-
-## 📦 Installation
-
-Add the package via Composer (configured as a local path repository):
+### 1. Configure Repository
+Add the package as a local path repository in your root `composer.json`:
 
 ```json
 "repositories": [
     {
         "type": "path",
-        "url": "packages/nexterp/*"
+        "url": "../jasper-reports"
     }
 ],
-"require": {
-    "nexterp/jasper-reports": "@dev"
-}
 ```
+
+### 2. Install Package
+Run the following command to add the package to your project:
+
+```bash
+composer require nexterp/jasper-reports:@dev
+```
+
+### 3. Run Automated Setup
+This package includes a setup script that automates Java 8 installation and binary patching.
+
+```bash
+# Navigate to the package directory (or run from root if scripts are synced)
+cd vendor/nexterp/jasper-reports
+chmod +x setup-jasper.sh
+./setup-jasper.sh
+```
+*Note: Default setup password is `nexterp123`.*
+
+### 4. Publish Resources
+Publish the report templates and views to your application:
+
+```bash
+php artisan vendor:publish --tag=jasper-reports-templates
+```
+
+### 5. Finalize Environment
+Ensure your root `post-update-cmd.php` (if present) or `composer.json` scripts are configured to run patching on every `dump-autoload`. If you encounter Java errors, run:
+
+```bash
+composer dump-autoload
+```
+
+### 6. Rebuilding Reports
+If you modify the report templates (`.jrxml` files), you must recompile them to update the binary `.jasper` files. Use the provided rebuild script:
+
+```bash
+php rebuild_all_v3.php
+```
+This will scan the report directory and recompile all templates to ensure your changes are reflected in the generated output.
 
 ---
 
 ## 💻 Usage
 
 ### Generating a Report
-
-Inject the `JasperReportService` into your controller:
+Inject `JasperReportService` into your controller:
 
 ```php
 use Nexterp\JasperReports\JasperReportService;
 
-class ReportController extends Controller
-{
-    protected $jasper;
-
-    public function __construct(JasperReportService $jasper)
-    {
-        $this->jasper = $jasper;
-    }
-
-    public function download()
-    {
-        $input = resource_path('reports/trial_balance.jrxml');
-        $output = storage_path('app/reports/result_'.time());
-        
-        $params = [
-            'company_name' => 'My Company',
-            'financial_year' => '2025'
-        ];
-
-        // Generates PDF and returns the path
-        $path = $this->jasper->generateReport($input, $output, ['pdf'], $params);
-        
-        return response()->file($path);
-    }
+public function __construct(JasperReportService $jasper) {
+    $this->jasper = $jasper;
 }
-```
 
-### Compiling Templates (.jrxml to .jasper)
-
-For better performance, compile templates only when they change.
-
-```php
-$this->jasper->compile(resource_path('reports/my_report.jrxml'));
+public function download() {
+    $input = resource_path('reports/vendor/jasper-reports/trial_balance.jrxml');
+    $output = storage_path('app/reports/trial_balance_'.time());
+    $params = ['logo' => public_path('logo.png')];
+    
+    $path = $this->jasper->generateReport($input, $output, ['pdf'], $params);
+    return response()->file($path);
+}
 ```
 
 ---
 
 ## 📊 Included Reports
+- **Trial Balance**: `trial_balance.jrxml`
+- **Income Statement**: `income_statement.jrxml`
+- **Balance Sheet**: `balance_sheet.jrxml`
+- **Cash Flow**: `cash_flow.jrxml`
+- **Changes in Equity**: `changes_in_equity.jrxml`
+- **General Ledger**: `general_ledger.jrxml`
 
-The package publishes standard templates to `resources/reports/vendor/jasper-reports`:
-
-- `trial_balance.jrxml`: Consolidated debits/credits.
-- `income_statement.jrxml`: P&L categorized by financial categories.
-- `balance_sheet.jrxml`: Assets vs Liabilities.
+---
 
 ## 🔧 Troubleshooting
 
 | Error | Cause | Solution |
 |-------|-------|----------|
-| `ClassCastException` | System Java (17+) is being used. | Run `composer dump-autoload` to re-patch the binary. Check `.java8` exists. |
-| `Parameter ... does not exist` | Passing params not defined in `.jrxml`. | Add `<parameter name="name" class="class"/>` to your JRXML file. |
-| `Font not found` | Missing font extensions. | Use standard fonts (SansSerif) or install font extensions. |
+| `ClassCastException` | System Java (17+) is used. | Run `composer dump-autoload` to re-patch. |
+| `Logo not found` | Invalid image path. | Use absolute paths via `public_path()` or `resource_path()`. |
+| `Permission denied` | Script lacks execution bits. | Run `chmod +x setup-jasper.sh`. |
 
 ---
 
 ## 📜 License
-
 MIT
