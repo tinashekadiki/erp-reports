@@ -14,27 +14,26 @@ A robust, enterprise-grade wrapper for Jasper Reports in Laravel, designed to se
 
 Follow these steps to integrate Jasper Reports into your Laravel project.
 
-### 1. Configure Repository
-Add the package as a local path repository in your root `composer.json`:
-
-```json
-"repositories": [
-    {
-        "type": "path",
-        "url": "../jasper-reports"
-    }
-],
-```
-
-### 2. Install Package
-Run the following command to add the package to your project:
+### 1. Install Package
+Run the following command to add the package to your project via Packagist:
 
 ```bash
-composer require nexterp/jasper-reports:@dev
+composer require nexterp/jasper-reports
 ```
 
+### 2. Auto-Update Setup (GitHub Hook)
+To ensure the package on Packagist stays in sync with your GitHub repository, set up the **GitHub Hook for Packagist**:
+1. Go to your GitHub repository -> **Settings** -> **Webhooks**.
+2. Click **Add webhook**.
+3. Payload URL: `https://packagist.org/api/github?username=tinashekadiki`
+4. Content type: `application/json`
+5. Secret: *Your Packagist API Token*
+6. Select "Just the push event" and click **Add webhook**.
+
+---
+
 ### 3. Run Automated Setup
-This package includes a setup script that automates Java 8 installation and binary patching.
+This package includes a setup script that automates Java 8 installation and binary patching for macOS and Linux.
 
 ```bash
 # Navigate to the package directory (or run from root if scripts are synced)
